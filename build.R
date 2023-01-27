@@ -36,9 +36,9 @@ test()
 
 
 # setup vignette
-usethis::use_vignette("tsxls")
+usethis::use_vignette("DATA621")
 devtools::install()
-devtools::build_rmd("vignettes/tsxls.Rmd")
+devtools::build_rmd("vignettes/DATA621.Rmd")
 devtools::build()
 
 
