@@ -1,0 +1,179 @@
+---
+title: "Train and evaluate models with tidymodels"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+#knitr::opts_chunk$set(echo = TRUE, fig.width = 8, fig.height = 5)
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+options(scipen=999)
+
+```
+
+
+
+```{r}
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+
+```
+
+
+
+
+
+```{r}
+
+food_df <- read_delim('./inst/data/FoodProc.txt')
+food_df$Method <- as.factor(food_df$Method )
+levels(food_df$Method ) <- c('old','new')
+
+```
+
+
+
+```{r}
+
+fit <- lm(TimeReqd ~ Method, food_df)
+summary(fit)
+contrasts(food_df$Method)
+
+```
+
+
+
+
+```{r}
+
+
+food_df %>% ggplot(aes(x=Method, y=TimeReqd)) +
+  geom_boxplot(width=0.3) +
+	stat_summary(fun="mean", size=3, geom = "point", aes(color="Mean"))+
+	stat_summary(fun="median", size=3, geom = "point", aes(color="Median"))+
+	labs(
+	    x = 'time', 
+	    y = 'method', 
+	    title = 'food processing'
+	)
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+# 2.8 Exercise #1
+1. The web site www.playbill.com provides weekly reports on the box office ticket sales for plays on Broadway in New York. We shall consider the data for the week October 11–17, 2004 (referred to below as the current week). The data are in the form of the gross box office results for the current week and the gross box office results for the previous week (i.e., October 3–10, 2004). The data, plotted in Figure 2.6, are available on the book web site in the file playbill.csv.
+Fit the following model to the data: Y = b0 + b1x + e where Y is the gross box office results for the current week (in $) and x is the gross box office results for the previous week (in $). Complete the following tasks:
+
+
+```{r}
+
+pb_df <- read_csv('./inst/data/marr/playbill.csv')
+
+
+```
+
+
+
+
+```{r}
+
+ggplot(pb_df,aes(x=LastWeek,y=CurrentWeek))+geom_point()  
+
+
+
+```
+
+
+
+
+```{r}
+
+fit <- lm(CurrentWeek ~ LastWeek, pb_df)
+summary(fit)
+
+```
+
+```{r}
+
+
+pb_df$estimate <- predict(fit, data.frame(LastWeek=pb_df$LastWeek), interval='confidence')[,1]
+pb_df$residuals <- pb_df$CurrentWeek - pb_df$estimate
+
+
+pb_df %>% 
+  ggplot(aes(x=LastWeek, y=CurrentWeek))+
+  geom_point(aes(size = abs(residuals)))+
+  geom_point(aes(y=estimate), color="green") + 
+  geom_smooth(method = "lm")+
+  geom_smooth(se = FALSE, color="blue")+
+  geom_segment(aes(xend = LastWeek, yend = estimate), color="red")
+
+
+```
+
+
+
+
+
+
+(a) Find a 95% confidence interval for the slope of the regression model, b1. Is 1 a plausible value for b1? Give a reason to support your answer.
+
+
+```{r}
+
+plot(CurrentWeek ~ LastWeek, pb_df)
+abline(fit)
+
+coef(fit)  
+confint(fit, level = 0.95)
+
+```
+
+
+
+(b) Test the null hypothesis H0 :b0 =10000 against a two-sided alternative. Interpret your result.
+
+```{r}
+
+
+
+
+```
+
+
+
+
+(c) Use the fitted regression model to estimate the gross box office results for the current week (in $) for a production with $400,000 in gross box office the previous week. Find a 95% prediction interval for the gross box office results for the current week (in $) for a production with $400,000 in gross box office the previous week. Is $450,000 a feasible value for the gross box office results in the current week, for a production with $400,000 in gross box office the previous week? Give a reason to support your answer.
+
+
+```{r}
+
+
+```
+
+
+
+
+
+(d) Some promoters of Broadway plays use the prediction rule that next week’s gross box office results will be equal to this week’s gross box office results. Comment on the appropriateness of this rule.
+
+
+
+
