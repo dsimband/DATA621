@@ -14,3 +14,5 @@ Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+URL: https://github.com/dsimband/DATA621
+BugReports: https://github.com/dsimband/DATA621/issues
