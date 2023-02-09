@@ -1,0 +1,121 @@
+---
+title: "w3_linear_regression"
+output: 
+  html_document:
+    code_folding: show
+    theme:
+      bg: "#202123"
+      fg: "#B8BCC2"
+      primary: "#EA80FC"
+      base_font:
+        google: Prompt
+      heading_font:
+        google: Proza Libre
+      version: 3
+---
+
+```{r setup, include=FALSE}
+if (requireNamespace("thematic")) 
+  thematic::thematic_rmd(font = "auto")
+
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+
+```
+
+
+
+```{r, include=FALSE, warning=FALSE}
+
+library(UsingR)
+library(ggplot2)
+library(dplyr)
+
+```
+
+
+
+
+```{r}
+
+data(diamond)
+
+
+```
+
+
+
+
+```{r}
+
+diamond %>% ggplot(aes(x=carat, y=price)) + 
+  xlab('Mass') +
+  ylab('Price') + 
+  geom_point(size=6, color='black', alpha=0.2) +
+  geom_point(size=5, color='blue', alpha=0.2) +
+  geom_smooth(method='lm', color='black')
+
+
+
+```
+
+
+
+
+```{r}
+plot(price~carat, data=diamond)
+
+fit <- lm(price~carat, data=diamond)
+abline(fit, col='blue')
+
+coef(fit)
+
+```
+
+
+
+
+
+
+
+```{r}
+
+plot(price ~ I(carat -mean(carat)), data=diamond)
+
+
+fit2 <- lm(price ~ I(carat -mean(carat)), data=diamond)
+summary(fit2)
+abline(fit2, col='blue')
+
+par(mfrow=c(2,2))
+plot(fit2)
+
+
+```
+
+
+
+```{r}
+plot(price ~ I(carat*10 -mean(carat*10)), data=diamond)
+
+
+fit3 <- lm(price ~ I(carat*10 -mean(carat*10)), data=diamond)
+summary(fit3)
+abline(fit3, col='blue')
+
+par(mfrow=c(2,2))
+plot(fit3)
+```
+
+
+
+
+
+
+```{r}
+
+d_lst <- c(0.16,0.27,0.34) * 10
+predict(fit3, newdata=data.frame(carat=d_lst))
+
+```
+
