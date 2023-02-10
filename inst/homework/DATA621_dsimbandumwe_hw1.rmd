@@ -27,6 +27,7 @@ library(tidyr)
 library(MASS)
 library(regclass)
 library(campfin)
+library(reshape2)
 
 ```
 
@@ -42,24 +43,6 @@ configFile <- list(
 
 
 ```
-
-
-
-
-
-```{r}
-
-train_df <- read.csv(configFile$fileNameTrain)
-train_df <- train_df %>% dplyr::select(-c('INDEX'))
-
-
-test_df <- read.csv(configFile$fileNameTest)
-test_df <- test_df %>% dplyr::select(-c('INDEX'))
-
-```
-
-
-
 
 
 
@@ -84,39 +67,50 @@ Your objective is to build a multiple linear regression model on the training da
 
 # 1. DATA EXPLORATION (25 Points)
 Describe the size and the variables in the moneyball training data set. Consider that too much detail will cause a manager to lose interest while too little detail will make the manager consider that you aren’t doing your job. Some suggestions are given below. Please do NOT treat this as a check list of things to do to complete the assignment. You should have your own thoughts on what to tell the boss. These are just ideas.
-
 a. Mean / Standard Deviation / Median
-
-```{r}
-
-skim(train_df)
-#skim(test_df)
-
-```
-
-
 b. Bar Chart or Box Plot of the data
-
-
 c. Is the data correlated to the target variable (or to other variables?)
-
-```{r}
-
-t_df <- train_df %>% select(-c('INDEX')) %>% drop_na() 
-M <- cor(t_df)
-M[(M < 0.3) & (M > -0.3)] <- 0
-corrplot(M, method = 'color')
-
-```
-
-
-
 d. Are any of the variables missing and need to be imputed “fixed”?
 
 
+
+
+## Load training
+
 ```{r}
 
+train_df <- read.csv(configFile$fileNameTrain)
+train_df <- train_df %>% dplyr::select(-c('INDEX'))
+sk_df <- skim(train_df)
+sk_df
 
+
+```
+
+
+
+There are several columns with null values and only 191 complete records out of 2276 totoal records.
+
+```{r}
+
+sk_df %>% dplyr:: filter(n_missing > 0 ) %>% dplyr::select(skim_variable,n_missing)
+
+# number of complete 
+print(paste0('Number of complete records: ',nrow(train_df %>% drop_na())))
+
+```
+
+
+
+The original dataset can updated to remove the NA data in 2 ways. Both approaches will result in 2276 complete records.
+
+- replace NA values with the average 
+- drop columns with NA values
+
+
+```{r}
+
+# columns 
 na_columns <- c('TEAM_BATTING_SO', 'TEAM_BASERUN_SB', 'TEAM_BASERUN_CS', 'TEAM_BATTING_HBP', 'TEAM_PITCHING_SO', 'TEAM_FIELDING_DP')
 
 trainFix_df <- train_df
@@ -124,36 +118,28 @@ trainFix_df <- flag_na(trainFix_df, na_columns)
 trainFix_df <- trainFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
 
 trainOmit_df <- train_df %>% dplyr::select(-na_columns)
-#trainFix_df <- flag_na(trainFix_df, na_columns)
-#trainFix_df <- trainFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
 
 
-
-testFix_df <- test_df
-testFix_df <- flag_na(testFix_df, na_columns)
-testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
 
 ```
 
 
 
+#Check for outliers
 
 ```{r}
 
 
-# flag_na(dplyr::starwars, names(dplyr::starwars))
-# 
-# 
-# list(names(dplyr::starwars))
-# 
-# f <- names(dplyr::starwars)
-# f <- c('hair_color','birth_year','name')
-# flag_na(dplyr::starwars, f)
-# 
-# 
-# names(dplyr::starwars)
-# flag_na(dplyr::starwars, .)
+ggplot(stack(train_df), aes(x = ind, y = values)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0, 1000)) +
+  theme(legend.position="none") +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) + 
+  theme(panel.background = element_rect(fill = 'grey'))
 
+m_df = melt(train_df)
+ggplot(m_df, aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
 
 ```
 
@@ -162,15 +148,52 @@ testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., rou
 
 
 
-```{r}
+```{r, message=FALSE}
 
-#train_df %>% explore(TEAM_BATTING_H, TEAM_BATTING_2B, TEAM_BATTING_3B = TARGET_WINS, split = TRUE)
-# train_df %>% explore(TEAM_BATTING_3B = TARGET_WINS, split = TRUE)
-# 
-# train_df %>% explain_tree(target = TARGET_WINS)
-# 
+#t_df <- train_df %>% select(-c('INDEX')) %>% drop_na() 
+M <- cor(train_df)
+M[(M < 0.2) & (M > -0.2)] <- 0
+corrplot(M, method = 'color')
+
+
+data.frame(M) %>% filter(TARGET_WINS > 0.1 | TARGET_WINS < -0.1) %>% dplyr::select(TARGET_WINS)
+
+
+M <- cor(trainFix_df)
+M1 <- data.frame(M) %>% filter(TARGET_WINS > 0.1 | TARGET_WINS < -0.1) %>% dplyr::select(TARGET_WINS)
+
+print('Columns with greater abs(0.1) correlation: ')
+print(rownames(M1))
+
+
+columnNames <- rownames(M1)
+train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
+                      title = "Money Ball", 
+                      upper = list(continuous = wrap("cor", size = 4)),
+                      lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)))
+
+
+
+```
+
+
+
+
+
+
+```{r, message=FALSE}
+
+#trainFix_df %>% explore(columnNames = TARGET_WINS, split = TRUE)
+
+#trainFix_df %>% explain_tree(target = TARGET_WINS)
+
 # df %>% select(age,bmi,children,charges) %>% pairs(panel = panel.smooth, gap=0.5)
 
+#trainFix_df %>% explain_tree(target = TARGET_WINS)
+trainFix_df %>% dplyr::select(columnNames) %>% pairs(panel = panel.smooth, gap=0.5)
+
+
+
 ```
 
 
@@ -178,7 +201,20 @@ testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., rou
 
 ```{r}
 
-#ggplot(df, aes(x=age, y=charges, color=smoker)) + geom_point()
+#ggplot(trainFix_df, aes(x=log(TEAM_BATTING_H), y=TARGET_WINS, color=na_flag)) + geom_point()
+ggplot(trainFix_df, aes(x=TEAM_BATTING_H, y=TARGET_WINS, color=TEAM_BATTING_2B)) + geom_point()
+ggplot(trainFix_df, aes(x=TEAM_BATTING_H, y=TARGET_WINS, color=TEAM_BATTING_BB)) + geom_point()
+
+ggplot(trainFix_df, aes(x=TEAM_BATTING_2B, y=TARGET_WINS, color=na_flag)) + geom_point()
+
+ggplot(trainFix_df, aes(x=TEAM_BATTING_BB, y=TARGET_WINS, color=na_flag)) + geom_point()
+
+
+
+
+TEAM_BATTING_H		
+TEAM_BATTING_2B			
+TEAM_BATTING_BB
 
 ```
 
@@ -201,7 +237,9 @@ testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., rou
 
 ```{r, message=FALSE}
 
-columnNames <- c("TARGET_WINS", "TEAM_BATTING_H", "TEAM_BATTING_HR", "TEAM_BATTING_HBP")
+#columnNames <- c("TARGET_WINS", "TEAM_BATTING_H", "TEAM_BATTING_HR", "TEAM_BATTING_HBP")
+columnNames <- names(train_df)
+
 
 train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
                       title = "Money Ball", 
@@ -226,6 +264,24 @@ Describe how you have transformed the data by changing the original variables or
 
 a. Fix missing values (maybe with a Mean or Median value)
 b. Create flags to suggest if a variable was missing
+
+
+The dataframe was updated in a previous step to support the data exporation steps. 
+
+- trainFix_df - substitutes the average of a variable for all NA values
+- trainOmit_df - removes the columns with NA values
+
+```{r}
+
+skim(train_df) %>% dplyr::select(skim_variable,n_missing)
+skim(trainFix_df) %>% dplyr::select(skim_variable,n_missing)
+skim(trainOmit_df) %>% dplyr::select(skim_variable,n_missing)
+
+```
+
+
+
+
 c. Transform data by putting it into buckets
 d. Mathematical transforms such as log or square root (or use Box-Cox)
 e. Combine variables (such as ratios or adding or multiplying) to create new variables
@@ -235,6 +291,8 @@ e. Combine variables (such as ratios or adding or multiplying) to create new var
 # 3. BUILD MODELS (25 Points)
 Using the training data set, build at least three different multiple linear regression models, using different variables (or the same variables with different transformations). Since we have not yet covered automated variable selection methods, you should select the variables manually (unless you previously learned Forward or Stepwise selection, etc.). Since you manually selected a variable for inclusion into the model or exclusion into the model, indicate why this was done.
 
+
+The defa
 
 ```{r}
 
@@ -288,7 +346,6 @@ Discuss the coefficients in the models, do they make sense? For example, if a te
 summary.lm(fit.step)
 #coef(fit.step)
 
-fit0 <- update
 fit0 <- update(fit.step, ~. -TEAM_BATTING_HBP) 
 summary.lm(fit0)
 
@@ -306,4 +363,55 @@ For the multiple linear regression model, will you use a metric such as Adjusted
 
 
 
+
+```{r}
+
+fit.final <- fitFix.step
+summary(fit.final)
+
+
+par(mfrow=c(2,2))
+plot(fit.final)
+
+```
+
+```{r}
+
+anova(fit3, test= "F")
+
+confint(fit3)
+
+
+```
+
+
+
+## Load testing dataset
+
+
+```{r}
+
+test_df <- read.csv(configFile$fileNameTest)
+test_df <- test_df %>% dplyr::select(-c('INDEX'))
+skim(test_df)
+
+testFix_df <- test_df
+testFix_df <- flag_na(testFix_df, na_columns)
+testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
+
+```
+
+
+
+
+
+
+```{r}
+
+testFix_df$PREDICT_WINS <- predict(fit.final, newdata=testFix_df)
+
+
+
+
+```
 
