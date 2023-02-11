@@ -1,24 +1,31 @@
 ---
 title: "DATA621_H1_MoneyBall"
-output: pdf_document
-date: "2023-02-09"
+author: "David Simbandumwe"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+editor_options: 
+  chunk_output_type: inline
 ---
 
 
-# Setup Script
-
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, result = 'asis', message=TRUE, warning=TRUE)
 rm(list=ls())
 
 ```
 
 
 
-```{r libs}
+
+
+
+```{r libraries}
 
 library(skimr)
+library(summarytools)
 library(explore)
 library(GGally)
 library(corrplot)
@@ -34,7 +41,7 @@ library(reshape2)
 
 
 
-```{r, echo=FALSE}
+```{r global, echo=FALSE}
 
 configFile <- list(
                   fileNameTrain = './inst/data/moneyball-training-data.csv',
@@ -48,7 +55,15 @@ configFile <- list(
 
 
 
-# Assignment 1
+# Overview
+The data-driven approach to sports management has gained significant traction over the years. In baseball, Sabermetrics has replaced instinct and gut feelings. Managers/coaches can optimize decisions, and interested parties can be predicted outcomes through careful analysis of the numbers. This assignment uses historic team statistics to forecast the number of team wins in a particular year. 
+
+The following table is a short description of the data set used for this analysis.
+![Money Ball](./a1_moneyball.png){height=640px width=480px}
+
+
+
+## Assignment 1
 
 In this homework assignment, you will explore, analyze and model a data set containing approximately 2200 records. Each record represents a professional baseball team from the years 1871 to 2006 inclusive. Each record has the performance of the team for the given year, with all of the statistics adjusted to match the performance of a 162 game season.
 
@@ -61,10 +76,6 @@ Your objective is to build a multiple linear regression model on the training da
 
 
 
-
-
-
-
 # 1. DATA EXPLORATION (25 Points)
 Describe the size and the variables in the moneyball training data set. Consider that too much detail will cause a manager to lose interest while too little detail will make the manager consider that you aren’t doing your job. Some suggestions are given below. Please do NOT treat this as a check list of things to do to complete the assignment. You should have your own thoughts on what to tell the boss. These are just ideas.
 a. Mean / Standard Deviation / Median
@@ -74,31 +85,198 @@ d. Are any of the variables missing and need to be imputed “fixed”?
 
 
 
-
-## Load training
-
-```{r}
+```{r load training data}
 
 train_df <- read.csv(configFile$fileNameTrain)
 train_df <- train_df %>% dplyr::select(-c('INDEX'))
-sk_df <- skim(train_df)
-sk_df
-
 
 ```
 
 
 
-There are several columns with null values and only 191 complete records out of 2276 totoal records.
+
+The data set has missing values across several variables, with only 191 complete records available. With sports statistics spanning over 100 years of league history, missing data can be expected. 
+
+
+
+```{r}
+st_options(
+  dfSummary.custom.2 = 
+    expression(
+      paste(
+        "Q1 - Q3 :",
+        round(
+          quantile(column_data, probs = .25, type = 2, 
+                   names = FALSE, na.rm = TRUE), digits = 1
+        ), " - ",
+        round(
+          quantile(column_data, probs = .75, type = 2, 
+                   names = FALSE, na.rm = TRUE), digits = 1
+        )
+      )
+    )
+)
+
+#st_options('round.digits') 
+#st_options(style = 'rmarkdown') 
+
+
+
+view(dfSummary(train_df,
+               plain.ascii  = FALSE,
+               style        = "grid"
+               ),
+     method = "browser"
+     )
+
+
+print(
+  dfSummary(train_df, 
+            varnumbers   = TRUE,
+            na.col       = FALSE,
+            style        = "grid",
+            plain.ascii  = FALSE,
+            freq.silent  = TRUE,
+            headings     = TRUE,
+            graph.magnif = .8,
+            tmp.img.dir  = "/tmp"),
+  method = "viewer"
+)
+
+```
+
+
 
 ```{r}
 
-sk_df %>% dplyr:: filter(n_missing > 0 ) %>% dplyr::select(skim_variable,n_missing)
+m_df <- melt(train_df)
+m_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
 
-# number of complete 
+
+m_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  #geom_jitter(width = 0.2) +
+  #stat_boxplot(coef = 1.5) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+  
+
+
+# 
+# ggplot(stack(train_df), aes(x = ind, y = values)) + 
+#   geom_boxplot() +
+#   coord_cartesian(ylim = c(0, 1000)) +
+#   theme(legend.position="none") +
+#   theme(axis.text.x=element_text(angle=45, hjust=1)) + 
+#   theme(panel.background = element_rect(fill = 'grey'))
+
+
+```
+
+
+
+
+```{r}
+names(train_df)
+
+tmp_df <- train_df %>% filter(TARGET_WINS < 40)
+t_df <- melt(tmp_df)
+
+t_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
+
+
+t_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+
+1500/162
+2000/162
+
+1644/155
+
+494/57
+
+```
+
+
+Target Value - TARGET_WINS
+Since the early 1960s, the schedule of both leagues of Major League Baseball has been 162 games long, and before that it was 154 games long. With such a large schedule, it is practically impossible for a team to finish with a winless season. The sabermetric baseball statistic Wins Above Replacement is calculated on the premise that even a team consisting entirely of replacement-level players, (i.e., a player that could be "replaced" by a call-up from the minor leagues without any significant statistical difference) is expected to win a baseline minimum number of games (typically 40–50, depending primarily on the caliber of the team's division) per 162-game season.
+
+(minimum 120 games) and for all eras, finishing at 20–134 (.130 percentage)
+116 games, which remains tied with the '01 Mariners for most ever, yet the Cubs did so in a 152-game schedule, making their . 763 win percentage the highest on record (since 1900).
+
+https://champsorchumps.us/records/worst-mlb-regular-season-records#tab-win-percentage
+
+Consider dropping teams with less than 20 wins
+
+
+
+Missing Values
+TEAM_BATTING_HBP (91.6%) of the values are missing
+TEAM_BASERUN_CS (33.9%) of the values are missing
+
+
+Outlier
+TEAM_BATTING_H
+TEAM_BATTING_3B
+TEAM_BASERUN_SB 
+TEAM_BASERUN_CS - might delete
+
+TEAM_PITCHING_H
+TEAM_PITCHING_BB
+TEAM_PITCHING_SO
+TEAM_PITCHING_E
+
+
+
+```{r}
+
+
+
+```
+
+
+
+BiModal Data
+
+TEAM_BATTING_H
+
+
+
+
+
+
+
+
+```{r}
+
+sk_df <- skim(train_df)
+sk_df
+
+sk_df$p_missing <- round(sk_df$n_missing / data_rows(sk_df),4)
+sk_df %>% dplyr::select(skim_type,skim_variable,n_missing,p_missing) %>% filter(n_missing > 0) %>% dplyr::arrange(desc(p_missing))
+
 print(paste0('Number of complete records: ',nrow(train_df %>% drop_na())))
 
 ```
+
+
+
+```{r}
+
+ft <- lm(TARGET_WINS ~ TEAM_BASERUN_CS, data=train_df)
+summary(ft)
+
+plot(TARGET_WINS ~ TEAM_BASERUN_CS, data=train_df)
+abline(ft, col='blue')
+
+
+```
+
+
+
+
 
 
 
@@ -137,7 +315,7 @@ ggplot(stack(train_df), aes(x = ind, y = values)) +
   theme(axis.text.x=element_text(angle=45, hjust=1)) + 
   theme(panel.background = element_rect(fill = 'grey'))
 
-m_df = melt(train_df)
+m_df <- melt(train_df)
 ggplot(m_df, aes(x= value)) + 
     geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
 
