@@ -35,6 +35,7 @@ library(MASS)
 library(regclass)
 library(campfin)
 library(reshape2)
+library(stringr)
 
 ```
 
@@ -87,9 +88,16 @@ d. Are any of the variables missing and need to be imputed “fixed”?
 
 ```{r load training data}
 
-train_df <- read.csv(configFile$fileNameTrain)
-train_df <- train_df %>% dplyr::select(-c('INDEX'))
+trainOrig_df <- read.csv(configFile$fileNameTrain)
+train_df <- trainOrig_df %>% dplyr::select(-c('INDEX'))
 
+columnNames <- names(train_df)
+columnNames <- str_replace(columnNames, "TEAM_BATTING", "BAT")
+columnNames <- str_replace(columnNames, "TEAM_PITCHING", "PITCH")
+columnNames <- str_replace(columnNames, "TEAM_FIELDING", "FIELD")
+columnNames <- str_replace(columnNames, "TEAM_BASERUN", "BASE")
+
+names(train_df) <- columnNames
 ```
 
 
@@ -176,28 +184,82 @@ m_df %>% ggplot(aes(x = value)) +
 
 
 
-```{r}
-names(train_df)
-
-tmp_df <- train_df %>% filter(TARGET_WINS < 40)
-t_df <- melt(tmp_df)
-
-t_df %>% ggplot(aes(x= value)) + 
-    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
 
 
-t_df %>% ggplot(aes(x = value)) +
-  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
-  facet_wrap(vars(variable),scales = "free", ncol = 4)
+```{r,  message=FALSE}
 
-1500/162
-2000/162
 
-1644/155
+M <- cor(train_df)
+M[(M < 0.2) & (M > -0.2)] <- 0
+corrplot(M, method = 'number')
 
-494/57
+train_df %>% ggcorr(
+    nbreaks = 10,
+    label = TRUE,
+    label_size = 4,
+    #geom = "circle",
+   color = "grey50")
+
+
+
+columnNames <- c('TARGET_WINS','BAT_H','BAT_2B','BAT_3B','BAT_HR',
+                  'BAT_BB','PITCH_H','PITCH_HR','PITCH_BB','FIELD_E')
+
+train_df %>% dplyr::select(columnNames) %>% pairs(panel = panel.smooth, gap=0.5)
+
+
+# columnNames <- names(train_df) 
+# columnNames <- columnNames[ !columnNames %in% c('TEAM_BATTING_SO','TEAM_BASERUN_SB','TEAM_BASERUN_CS','TEAM_BATTING_HBP',
+#                                                 'TEAM_PITCHING_SO','TEAM_PITCHING_SO')]
+
+# columnNames <- c('TARGET_WINS','BAT_H','BAT_2B','BAT_3B','BAT_HR',
+#                  'BAT_BB','PITCH_H','PITCH_HR','PITCH_BB','FIELD_E')
+# 
+# 
+# train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
+#                       title = "Money Ball", 
+#                       upper = list(continuous = wrap("cor", size = 3)),
+#                       lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)))
 
 ```
+
+
+
+
+
+
+```{r}
+
+ggplot(train_df, aes(x=BAT_HR, y=PITCH_HR, color=TARGET_WINS)) + 
+  scale_colour_gradient(low = 'gray', high = 'blue') + 
+  geom_point()
+
+ggplot(train_df, aes(x=FIELD_E, y=PITCH_H, color=TARGET_WINS)) + 
+  scale_colour_gradient(low = 'gray', high = 'blue') + 
+  geom_point()
+
+ggplot(train_df, aes(x=FIELD_E, y=BAT_BB, color=TARGET_WINS)) + 
+  scale_colour_gradient(low = 'gray', high = 'blue') + 
+  geom_point()
+
+ggplot(train_df, aes(x=BAT_3B, y=BAT_HR, color=TARGET_WINS)) + 
+  scale_colour_gradient(low = 'gray', high = 'blue') + 
+  geom_point()
+
+
+#names(train_df)
+
+```
+
+
+
+
+
+
+
+
+
+
 
 
 Target Value - TARGET_WINS
@@ -208,7 +270,7 @@ Since the early 1960s, the schedule of both leagues of Major League Baseball has
 
 https://champsorchumps.us/records/worst-mlb-regular-season-records#tab-win-percentage
 
-Consider dropping teams with less than 20 wins
+Consider dropping teams with less than 20 wins and over 130
 
 
 
@@ -229,18 +291,13 @@ TEAM_PITCHING_SO
 TEAM_PITCHING_E
 
 
-
-```{r}
-
-
-
-```
-
-
-
 BiModal Data
 
-TEAM_BATTING_H
+
+
+TEAM_BATTING_HR
+TEAM_BATTING_SO
+TEAM_PITCHING_HR
 
 
 
@@ -249,30 +306,10 @@ TEAM_BATTING_H
 
 
 
-```{r}
-
-sk_df <- skim(train_df)
-sk_df
-
-sk_df$p_missing <- round(sk_df$n_missing / data_rows(sk_df),4)
-sk_df %>% dplyr::select(skim_type,skim_variable,n_missing,p_missing) %>% filter(n_missing > 0) %>% dplyr::arrange(desc(p_missing))
-
-print(paste0('Number of complete records: ',nrow(train_df %>% drop_na())))
-
-```
 
 
 
-```{r}
 
-ft <- lm(TARGET_WINS ~ TEAM_BASERUN_CS, data=train_df)
-summary(ft)
-
-plot(TARGET_WINS ~ TEAM_BASERUN_CS, data=train_df)
-abline(ft, col='blue')
-
-
-```
 
 
 
@@ -289,14 +326,14 @@ The original dataset can updated to remove the NA data in 2 ways. Both approache
 ```{r}
 
 # columns 
-na_columns <- c('TEAM_BATTING_SO', 'TEAM_BASERUN_SB', 'TEAM_BASERUN_CS', 'TEAM_BATTING_HBP', 'TEAM_PITCHING_SO', 'TEAM_FIELDING_DP')
-
-trainFix_df <- train_df
-trainFix_df <- flag_na(trainFix_df, na_columns)
-trainFix_df <- trainFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
-
-trainOmit_df <- train_df %>% dplyr::select(-na_columns)
-
+# na_columns <- c('TEAM_BATTING_SO', 'TEAM_BASERUN_SB', 'TEAM_BASERUN_CS', 'TEAM_BATTING_HBP', 'TEAM_PITCHING_SO', 'TEAM_FIELDING_DP')
+# 
+# trainFix_df <- train_df
+# trainFix_df <- flag_na(trainFix_df, na_columns)
+# trainFix_df <- trainFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
+# 
+# trainOmit_df <- train_df %>% dplyr::select(-na_columns)
+# 
 
 
 ```
@@ -305,135 +342,10 @@ trainOmit_df <- train_df %>% dplyr::select(-na_columns)
 
 #Check for outliers
 
-```{r}
-
-
-ggplot(stack(train_df), aes(x = ind, y = values)) + 
-  geom_boxplot() +
-  coord_cartesian(ylim = c(0, 1000)) +
-  theme(legend.position="none") +
-  theme(axis.text.x=element_text(angle=45, hjust=1)) + 
-  theme(panel.background = element_rect(fill = 'grey'))
-
-m_df <- melt(train_df)
-ggplot(m_df, aes(x= value)) + 
-    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
-
-```
 
 
 
 
-
-
-```{r, message=FALSE}
-
-#t_df <- train_df %>% select(-c('INDEX')) %>% drop_na() 
-M <- cor(train_df)
-M[(M < 0.2) & (M > -0.2)] <- 0
-corrplot(M, method = 'color')
-
-
-data.frame(M) %>% filter(TARGET_WINS > 0.1 | TARGET_WINS < -0.1) %>% dplyr::select(TARGET_WINS)
-
-
-M <- cor(trainFix_df)
-M1 <- data.frame(M) %>% filter(TARGET_WINS > 0.1 | TARGET_WINS < -0.1) %>% dplyr::select(TARGET_WINS)
-
-print('Columns with greater abs(0.1) correlation: ')
-print(rownames(M1))
-
-
-columnNames <- rownames(M1)
-train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
-                      title = "Money Ball", 
-                      upper = list(continuous = wrap("cor", size = 4)),
-                      lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)))
-
-
-
-```
-
-
-
-
-
-
-```{r, message=FALSE}
-
-#trainFix_df %>% explore(columnNames = TARGET_WINS, split = TRUE)
-
-#trainFix_df %>% explain_tree(target = TARGET_WINS)
-
-# df %>% select(age,bmi,children,charges) %>% pairs(panel = panel.smooth, gap=0.5)
-
-#trainFix_df %>% explain_tree(target = TARGET_WINS)
-trainFix_df %>% dplyr::select(columnNames) %>% pairs(panel = panel.smooth, gap=0.5)
-
-
-
-```
-
-
-
-
-```{r}
-
-#ggplot(trainFix_df, aes(x=log(TEAM_BATTING_H), y=TARGET_WINS, color=na_flag)) + geom_point()
-ggplot(trainFix_df, aes(x=TEAM_BATTING_H, y=TARGET_WINS, color=TEAM_BATTING_2B)) + geom_point()
-ggplot(trainFix_df, aes(x=TEAM_BATTING_H, y=TARGET_WINS, color=TEAM_BATTING_BB)) + geom_point()
-
-ggplot(trainFix_df, aes(x=TEAM_BATTING_2B, y=TARGET_WINS, color=na_flag)) + geom_point()
-
-ggplot(trainFix_df, aes(x=TEAM_BATTING_BB, y=TARGET_WINS, color=na_flag)) + geom_point()
-
-
-
-
-TEAM_BATTING_H		
-TEAM_BATTING_2B			
-TEAM_BATTING_BB
-
-```
-
-
-
-
-
-```{r,}
-
-
-# train_df %>% select(-c(INDEX)) %>% ggcorr(
-#     nbreaks = 10,
-#     label = TRUE,
-#     label_size = 2,
-#     #geom = "circle",
-#    color = "grey50")
-
-```
-
-
-```{r, message=FALSE}
-
-#columnNames <- c("TARGET_WINS", "TEAM_BATTING_H", "TEAM_BATTING_HR", "TEAM_BATTING_HBP")
-columnNames <- names(train_df)
-
-
-train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
-                      title = "Money Ball", 
-                      upper = list(continuous = wrap("cor", size = 3)),
-                      lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)))
-
-
-
-# train_df %>% drop_na() %>% 
-#   ggpairs(columns = c("TARGET_WINS", "TEAM_BATTING_H", "TEAM_BATTING_HR", "TEAM_BATTING_HBP"), 
-#                       title = "Bivariate analysis of revenue expenditure by the British household", 
-#                       upper = list(continuous = wrap("cor", size = 3)),
-#                       lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)),
-#                       mapping = aes(color = TARGET_WINS))
-
-```
 
 
 
@@ -443,17 +355,223 @@ Describe how you have transformed the data by changing the original variables or
 a. Fix missing values (maybe with a Mean or Median value)
 b. Create flags to suggest if a variable was missing
 
+- There are 2 variables with a substantial amount of missing data
+BAT_HBP , BASE_CS
 
-The dataframe was updated in a previous step to support the data exporation steps. 
+```{r}
 
-- trainFix_df - substitutes the average of a variable for all NA values
-- trainOmit_df - removes the columns with NA values
+train_df <- train_df %>% dplyr::select(-c(BAT_HBP,BASE_CS))
+
+```
+
+
+
+- Removed 0
+- Changed NA to medians
+
+```{r}
+
+columnNames <- names(train_df)
+
+train_df[train_df == 0] <- NA
+train_df <- flag_na(train_df, columnNames)
+train_df <- train_df %>% mutate(across(where(is.numeric), ~replace_na(., round(median(., na.rm=TRUE)))))
+
+```
+
+
+
+- BAT_HR and PITCH_HR have a 0.97 correlation
+
+```{r}
+
+t_df <- train_df %>% filter(na_flag)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+# Standard
+t_df <- train_df %>% dplyr::select(-c(na_flag))
+m_df <- melt(t_df)
+m_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
+
+m_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+
+
+# SQRT
+trainSqrt_df <- sqrt(t_df)
+m_df <- melt(trainSqrt_df)
+m_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
+
+m_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+
+
+# Log
+trainLog_df <- log(t_df)
+m_df <- melt(trainLog_df)
+m_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
+
+
+m_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+
+
+
+
+```
+
+
+
+
+
+
+
+sqrt - 
+log - BASE_SB, PITCH_H, PITCH_BB, PITCH_SO, FIELD_E, FIELD_E
+
+
+
+```{r}
+
+trainTsf_df <- train_df
+
+trainTsf_df$BASE_SB <- log(train_df$BASE_SB)
+trainTsf_df$PITCH_H <- log(train_df$PITCH_H)
+trainTsf_df$PITCH_BB <- log(train_df$PITCH_BB)
+trainTsf_df$PITCH_SO <- log(train_df$PITCH_SO)
+trainTsf_df$FIELD_E <- log(train_df$FIELD_E)
+trainTsf_df$FIELD_E <- log(train_df$FIELD_E)
+
+
+m_df <- melt(trainTsf_df)
+m_df %>% ggplot(aes(x= value)) + 
+    geom_density(fill='gray') + facet_wrap(~variable, scales = 'free') 
+
+
+m_df %>% ggplot(aes(x = value)) +
+  geom_boxplot(outlier.color = 'red', outlier.shape = 1) +
+  facet_wrap(vars(variable),scales = "free", ncol = 4)
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+
+bc$y^lambda
+
+bc$x
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r}
 
 skim(train_df) %>% dplyr::select(skim_variable,n_missing)
-skim(trainFix_df) %>% dplyr::select(skim_variable,n_missing)
-skim(trainOmit_df) %>% dplyr::select(skim_variable,n_missing)
+
 
 ```
 
