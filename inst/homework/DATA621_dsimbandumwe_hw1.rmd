@@ -89,16 +89,88 @@ d. Are any of the variables missing and need to be imputed “fixed”?
 ```{r load training data}
 
 trainOrig_df <- read.csv(configFile$fileNameTrain)
-train_df <- trainOrig_df %>% dplyr::select(-c('INDEX'))
+trainOrig_df <- trainOrig_df %>% dplyr::select(-c('INDEX'))
 
-columnNames <- names(train_df)
+columnNames <- names(trainOrig_df)
 columnNames <- str_replace(columnNames, "TEAM_BATTING", "BAT")
 columnNames <- str_replace(columnNames, "TEAM_PITCHING", "PITCH")
 columnNames <- str_replace(columnNames, "TEAM_FIELDING", "FIELD")
 columnNames <- str_replace(columnNames, "TEAM_BASERUN", "BASE")
 
-names(train_df) <- columnNames
+names(trainOrig_df) <- columnNames
+
+
+train_df <- trainOrig_df
+#t0_df <- trainOrig_df
+
 ```
+
+
+
+```{r}
+
+# t0_df <- t0_df %>% dplyr::select(-c(BAT_HBP,BASE_CS))
+# columnNames <- names(t0_df)
+# 
+# t0_df[t0_df == 0] <- NA
+# t0_df <- flag_na(t0_df, columnNames)
+# t0_df <- t0_df %>% mutate(across(where(is.numeric), ~replace_na(., round(median(., na.rm=TRUE)))))
+# 
+# 
+# fit0 <- lm(TARGET_WINS ~ ., data=t0_df)
+# summary.lm(fit0)
+# 
+# fit0.step <- stepAIC(fit0, direction = "both", trace = FALSE)
+# summary.lm(fit0.step)
+# 
+# par(mfrow=c(2,2))
+# plot(fit0.step)
+
+
+```
+
+
+```{r}
+
+test_df <- read.csv(configFile$fileNameTest)
+test_df <- test_df %>% dplyr::select(-c('INDEX'))
+
+
+columnNames <- names(test_df)
+columnNames <- str_replace(columnNames, "TEAM_BATTING", "BAT")
+columnNames <- str_replace(columnNames, "TEAM_PITCHING", "PITCH")
+columnNames <- str_replace(columnNames, "TEAM_FIELDING", "FIELD")
+columnNames <- str_replace(columnNames, "TEAM_BASERUN", "BASE")
+
+names(test_df) <- columnNames
+
+# ts0_df <- test_df
+# ts0_df <- ts0_df %>% dplyr::select(-c(BAT_HBP,BASE_CS))
+# 
+# columnNames <- names(ts0_df)
+# 
+# ts0_df[ts0_df == 0] <- NA
+# ts0_df <- flag_na(ts0_df, columnNames)
+# ts0_df <- ts0_df %>% mutate(across(where(is.numeric), ~replace_na(., round(median(., na.rm=TRUE)))))
+
+```
+
+
+
+```{r}
+
+#t0_df$PREDICT_WINS <- predict(fit0.step, newdata=t0_df) 
+#t0_df <- t0_df %>% dplyr::select(TARGET_WINS, PREDICT_WINS)
+#ts0_df$PREDICT_WINS <- predict(fit0.step, newdata=ts0_df)
+#ts0_df <- ts0_df %>% dplyr::select(PREDICT_WINS)
+
+
+```
+
+
+
+
+
 
 
 
@@ -193,6 +265,7 @@ M <- cor(train_df)
 M[(M < 0.2) & (M > -0.2)] <- 0
 corrplot(M, method = 'number')
 
+# correlation
 train_df %>% ggcorr(
     nbreaks = 10,
     label = TRUE,
@@ -201,25 +274,12 @@ train_df %>% ggcorr(
    color = "grey50")
 
 
-
+# pairwise analysis
 columnNames <- c('TARGET_WINS','BAT_H','BAT_2B','BAT_3B','BAT_HR',
                   'BAT_BB','PITCH_H','PITCH_HR','PITCH_BB','FIELD_E')
 
 train_df %>% dplyr::select(columnNames) %>% pairs(panel = panel.smooth, gap=0.5)
 
-
-# columnNames <- names(train_df) 
-# columnNames <- columnNames[ !columnNames %in% c('TEAM_BATTING_SO','TEAM_BASERUN_SB','TEAM_BASERUN_CS','TEAM_BATTING_HBP',
-#                                                 'TEAM_PITCHING_SO','TEAM_PITCHING_SO')]
-
-# columnNames <- c('TARGET_WINS','BAT_H','BAT_2B','BAT_3B','BAT_HR',
-#                  'BAT_BB','PITCH_H','PITCH_HR','PITCH_BB','FIELD_E')
-# 
-# 
-# train_df %>% drop_na() %>% ggpairs(columns = columnNames, 
-#                       title = "Money Ball", 
-#                       upper = list(continuous = wrap("cor", size = 3)),
-#                       lower = list(continuous = wrap("smooth", alpha = 0.3,size = 0.1)))
 
 ```
 
@@ -246,17 +306,7 @@ ggplot(train_df, aes(x=BAT_3B, y=BAT_HR, color=TARGET_WINS)) +
   scale_colour_gradient(low = 'gray', high = 'blue') + 
   geom_point()
 
-
-#names(train_df)
-
 ```
-
-
-
-
-
-
-
 
 
 
@@ -307,37 +357,10 @@ TEAM_PITCHING_HR
 
 
 
-
-
-
-
-
-
-
-
-
-
 The original dataset can updated to remove the NA data in 2 ways. Both approaches will result in 2276 complete records.
 
 - replace NA values with the average 
 - drop columns with NA values
-
-
-```{r}
-
-# columns 
-# na_columns <- c('TEAM_BATTING_SO', 'TEAM_BASERUN_SB', 'TEAM_BASERUN_CS', 'TEAM_BATTING_HBP', 'TEAM_PITCHING_SO', 'TEAM_FIELDING_DP')
-# 
-# trainFix_df <- train_df
-# trainFix_df <- flag_na(trainFix_df, na_columns)
-# trainFix_df <- trainFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
-# 
-# trainOmit_df <- train_df %>% dplyr::select(-na_columns)
-# 
-
-
-```
-
 
 
 #Check for outliers
@@ -388,19 +411,6 @@ train_df <- train_df %>% mutate(across(where(is.numeric), ~replace_na(., round(m
 t_df <- train_df %>% filter(na_flag)
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -467,7 +477,6 @@ trainTsf_df$PITCH_H <- log(train_df$PITCH_H)
 trainTsf_df$PITCH_BB <- log(train_df$PITCH_BB)
 trainTsf_df$PITCH_SO <- log(train_df$PITCH_SO)
 trainTsf_df$FIELD_E <- log(train_df$FIELD_E)
-trainTsf_df$FIELD_E <- log(train_df$FIELD_E)
 
 
 m_df <- melt(trainTsf_df)
@@ -487,97 +496,6 @@ m_df %>% ggplot(aes(x = value)) +
 
 
 
-
-
-
-```{r}
-
-
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-
-
-bc$y^lambda
-
-bc$x
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-
-skim(train_df) %>% dplyr::select(skim_variable,n_missing)
-
-
-```
-
-
-
-
 c. Transform data by putting it into buckets
 d. Mathematical transforms such as log or square root (or use Box-Cox)
 e. Combine variables (such as ratios or adding or multiplying) to create new variables
@@ -588,7 +506,24 @@ e. Combine variables (such as ratios or adding or multiplying) to create new var
 Using the training data set, build at least three different multiple linear regression models, using different variables (or the same variables with different transformations). Since we have not yet covered automated variable selection methods, you should select the variables manually (unless you previously learned Forward or Stepwise selection, etc.). Since you manually selected a variable for inclusion into the model or exclusion into the model, indicate why this was done.
 
 
-The defa
+The default
+
+```{r}
+
+fit.Orig <- lm(TARGET_WINS ~ ., data=trainOrig_df)
+summary.lm(fit.Orig)
+
+fit.Orig.step <- stepAIC(fit.Orig, direction = "both", trace = FALSE)
+summary.lm(fit.Orig.step)
+
+par(mfrow=c(2,2))
+plot(fit.Orig.step)
+
+
+```
+
+
+
 
 ```{r}
 
@@ -598,6 +533,10 @@ summary.lm(fit.full)
 fit.step <- stepAIC(fit.full, direction = "both", trace = FALSE)
 summary.lm(fit.step)
 
+par(mfrow=c(2,2))
+plot(fit.step)
+
+
 ```
 
 
@@ -608,26 +547,15 @@ summary.lm(fit.step)
 
 ```{r}
 
-fitFix.full <- lm(TARGET_WINS ~ ., data=trainFix_df)
-summary.lm(fitFix.full)
+fit.Tsf <- lm(TARGET_WINS ~ ., data=trainTsf_df)
+summary.lm(fit.Tsf )
+
+fit.Tsf.step <- stepAIC(fit.Tsf , direction = "both", trace = FALSE)
+summary.lm(fit.Tsf.step)
 
 
-fitFix.step <- stepAIC(fitFix.full, direction = "both", trace = FALSE)
-summary.lm(fitFix.step)
-
-```
-
-
-
-```{r}
-
-fitOmit.full <- lm(TARGET_WINS ~ ., data=trainOmit_df)
-summary.lm(fitOmit.full)
-
-
-fitOmit.step <- stepAIC(fitOmit.full, direction = "both", trace = FALSE)
-summary.lm(fitOmit.step)
-
+par(mfrow=c(2,2))
+plot(fit.Tsf.step)
 
 ```
 
@@ -635,18 +563,6 @@ summary.lm(fitOmit.step)
 
 
 Discuss the coefficients in the models, do they make sense? For example, if a team hits a lot of Home Runs, it would be reasonably expected that such a team would win more games. However, if the coefficient is negative (suggesting that the team would lose more games), then that needs to be discussed. Are you keeping the model even though it is counter intuitive? Why? The boss needs to know.
-
-
-```{r}
-
-summary.lm(fit.step)
-#coef(fit.step)
-
-fit0 <- update(fit.step, ~. -TEAM_BATTING_HBP) 
-summary.lm(fit0)
-
-
-```
 
 
 
@@ -662,7 +578,25 @@ For the multiple linear regression model, will you use a metric such as Adjusted
 
 ```{r}
 
-fit.final <- fitFix.step
+
+
+# trainTsf_df %>% ggplot(aes(x=carat, y=price)) + 
+#   xlab('Mass') +
+#   ylab('Price') + 
+#   geom_point(size=6, color='black', alpha=0.2) +
+#   geom_point(size=5, color='blue', alpha=0.2) +
+#   geom_smooth(method='lm', color='black')
+
+
+```
+
+
+
+
+
+```{r}
+
+fit.final <- fit.Tsf.step
 summary(fit.final)
 
 
@@ -673,9 +607,9 @@ plot(fit.final)
 
 ```{r}
 
-anova(fit3, test= "F")
+anova(fit.final, test= "F")
 
-confint(fit3)
+confint(fit.final)
 
 
 ```
@@ -689,11 +623,62 @@ confint(fit3)
 
 test_df <- read.csv(configFile$fileNameTest)
 test_df <- test_df %>% dplyr::select(-c('INDEX'))
-skim(test_df)
 
-testFix_df <- test_df
-testFix_df <- flag_na(testFix_df, na_columns)
-testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., round(mean(., na.rm=TRUE)))))
+
+columnNames <- names(test_df)
+columnNames <- str_replace(columnNames, "TEAM_BATTING", "BAT")
+columnNames <- str_replace(columnNames, "TEAM_PITCHING", "PITCH")
+columnNames <- str_replace(columnNames, "TEAM_FIELDING", "FIELD")
+columnNames <- str_replace(columnNames, "TEAM_BASERUN", "BASE")
+
+names(test_df) <- columnNames
+
+
+test_df <- test_df %>% dplyr::select(-c(BAT_HBP,BASE_CS))
+
+
+
+columnNames <- names(test_df)
+
+test_df[test_df == 0] <- NA
+test_df <- flag_na(test_df, columnNames)
+test_df <- test_df %>% mutate(across(where(is.numeric), ~replace_na(., round(median(., na.rm=TRUE)))))
+
+
+# transform data
+test_df$BASE_SB <- log(test_df$BASE_SB)
+test_df$PITCH_H <- log(test_df$PITCH_H)
+test_df$PITCH_BB <- log(test_df$PITCH_BB)
+test_df$PITCH_SO <- log(test_df$PITCH_SO)
+test_df$FIELD_E <- log(test_df$FIELD_E)
+
+
+
+```
+
+
+```{r}
+
+view(dfSummary(test_df,
+               plain.ascii  = FALSE,
+               style        = "grid"
+               ),
+     method = "browser"
+     )
+
+
+print(
+  dfSummary(test_df, 
+            varnumbers   = TRUE,
+            na.col       = FALSE,
+            style        = "grid",
+            plain.ascii  = FALSE,
+            freq.silent  = TRUE,
+            headings     = TRUE,
+            graph.magnif = .8,
+            tmp.img.dir  = "/tmp"),
+  method = "viewer"
+)
 
 ```
 
@@ -701,13 +686,40 @@ testFix_df <- testFix_df %>% mutate(across(where(is.numeric), ~replace_na(., rou
 
 
 
+```{r}
+
+
+view(dfSummary(trainTsf_df,
+               plain.ascii  = FALSE,
+               style        = "grid"
+               ),
+     method = "browser"
+     )
+
+
+print(
+  dfSummary(trainTsf_df, 
+            varnumbers   = TRUE,
+            na.col       = FALSE,
+            style        = "grid",
+            plain.ascii  = FALSE,
+            freq.silent  = TRUE,
+            headings     = TRUE,
+            graph.magnif = .8,
+            tmp.img.dir  = "/tmp"),
+  method = "viewer"
+)
+
+```
+
+
+
 
 ```{r}
 
-testFix_df$PREDICT_WINS <- predict(fit.final, newdata=testFix_df)
-
-
-
+trainTsf_df$PREDICT_WINS <- predict(fit.final, newdata=trainTsf_df) 
+#trainTsf_df %>% dplyr::select(TARGET_WINS,PREDICT_WINS)
+test_df$PREDICT_WINS <- predict(fit.final, newdata=test_df)
 
 ```
 
